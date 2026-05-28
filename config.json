@@ -1,0 +1,13 @@
+{
+  "author_query": "a M.S.Neubauer",
+  "start_year": 2000,
+  "end_year": 2026,
+  "author_last_name": "Neubauer",
+  "raw_dir": "data/raw",
+  "output_dir": "output",
+  "preprints_bib": "pubs_preprints.bib",
+  "tex_main": "tex/mypubs.tex",
+  "build_dir": "build",
+  "journal_bib": "pubs_journal.bib",
+  "proceedings_bib": "pubs_proceedings.bib"
+}
