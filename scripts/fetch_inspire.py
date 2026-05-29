@@ -26,7 +26,7 @@ def load_config(path: Path) -> dict:
         return json.load(fh)
 
 
-def build_url(query: str, date_expr: str, size: int = 100, page: int = 1) -> str:
+def build_url(query: str, date_expr: str, size: int = 25, page: int = 1) -> str:
     params = {
         "sort": "mostrecent",
         "size": str(size),
@@ -127,7 +127,7 @@ def main() -> int:
     parser.add_argument("--start-year", type=int, help="override config start_year")
     parser.add_argument("--end-year", type=int, help="override config end_year")
     parser.add_argument("--year", type=int, help="fetch one year only")
-    parser.add_argument("--size", type=int, default=100, help="page size for INSPIRE requests")
+    parser.add_argument("--size", type=int, default=25, help="page size for INSPIRE requests")
     parser.add_argument("--timeout", type=int, default=90, help="per-request timeout in seconds")
     parser.add_argument("--retries", type=int, default=5, help="number of tries per page")
     parser.add_argument("--no-month-fallback", action="store_true", help="do not split failed yearly queries by month")
