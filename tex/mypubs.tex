@@ -6,6 +6,7 @@
 \usepackage[T1]{fontenc}
 
 \addbibresource{pubs_journal.bib}
+%\AtEveryBibitem{\typeout{BIBKEY:\thefield{entrykey}}}
 \addbibresource{pubs_proceedings.bib}
 \addbibresource{pubs_preprints.bib}
 
@@ -20,7 +21,9 @@
 
 \nocite{*}
 \showarticles
+\newpage
 \showproceedings
+\newpage
 \showpreprints
 
 \end{document}

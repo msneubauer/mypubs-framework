@@ -9,20 +9,20 @@ import re
 import sys
 from collections import OrderedDict
 from pathlib import Path
-
+import unicodedata
 
 UNICODE_REPLACEMENTS = {
     "\u2212": "-",
     "\u202f": " ",
-    "\u00b1": r"\pm",
+    "\u00b1": r"{\ensuremath{\pm}}",
     "\u03b3": r"{\ensuremath{\gamma}}",
     "\u03c4": r"{\ensuremath{\tau}}",
     "\u03bc": r"{\ensuremath{\mu}}",
     "\u03bd": r"{\ensuremath{\nu}}",
     "\u03c8": r"{\ensuremath{\psi}}",
     "\u039b": r"{\ensuremath{\Lambda}}",
-    "\u204e": r"\ast",
-    "\u2217": r"\ast",
+    "\u204e": r"{\ensuremath{\ast}}",
+    "\u2217": r"{\ensuremath{\ast}}",
 }
 
 
@@ -33,12 +33,32 @@ def load_config(path: Path) -> dict:
 
 def replace_fragile_latex(value: str) -> str:
     text = value or ""
+
+    # Repair INSPIRE's malformed inline subscript form, e.g. V$_{cb}$ -> $V_{cb}$.
+    text = re.sub(r"([A-Za-z0-9])\$\s*(_(?:\{[^$]*\}|[A-Za-z0-9]+))\$", r"$\1\2$", text)
+
+    # INSPIRE occasionally supplies titles with embedded MathML/HTML markup.
+    # Keep its textual content, but remove tags before writing BibTeX.
+    text = re.sub(r"<[^>]*>", "", text)
+
+    # Escape TeX-special text characters when INSPIRE supplies them literally.
+    text = re.sub(r"(?<!\\)([&#%])", r"\\\1", text)
+
     for old, new in UNICODE_REPLACEMENTS.items():
         text = text.replace(old, new)
     text = text.replace(r"\varvec{W}", "W")
     text = text.replace(r"\varvec{pp}", "pp")
     text = text.replace(r"\varvec{\sqrt{s}}", r"\sqrt{s}")
-    return text
+    # Expand legacy INSPIRE particle macros into standard LaTeX.
+    text = re.sub(r"\\t(?=\\|[^A-Za-z]|$)", "t", text)
+    text = text.replace(r"\Qbar", r"\bar{Q}")
+    text = text.replace(r"\tbar", r"\bar{t}")
+    text = text.replace(r"\Wmp", r"W^{\mp}")
+    text = text.replace(r"\Wpm", r"W^{\pm}")
+
+    # Convert remaining accented/typographic Unicode to ASCII after preserving
+    # the explicit LaTex replacements above.
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
 
 def latex_escape_text(value: str) -> str:
@@ -155,11 +175,26 @@ def first(values: list[dict], key: str) -> str:
     return str(values[0].get(key, "") or "")
 
 
+def texkey(values: object) -> str:
+    """Return the first usable INSPIRE texkey from either supported schema."""
+    if not isinstance(values, list):
+        return ""
+
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict):
+            candidate = value.get("value")
+            if candidate:
+                return str(candidate)
+    return ""
+
+
 def entry_from_record(record: dict) -> str:
     meta = record.get("metadata", {})
-    key = first(meta.get("texkeys", []), "value") if isinstance(meta.get("texkeys"), list) else ""
+    key = texkey(meta.get("texkeys"))
     if not key:
-        key = meta.get("texkeys", [""])[0] if meta.get("texkeys") else f"inspire-{record.get('id')}"
+        key = f"inspire-{record.get('id')}"
     title = first(meta.get("titles", []), "title")
     authors = meta.get("authors", [])
     raw_author = " and ".join(a.get("full_name", "") for a in authors if a.get("full_name"))
@@ -170,6 +205,12 @@ def entry_from_record(record: dict) -> str:
     author = normalize_author(raw_author, collab)
     arxiv = (meta.get("arxiv_eprints") or [{}])[0]
     pub = (meta.get("publication_info") or [{}])[0]
+    document_types = {
+        str(value).lower()
+        for value in meta.get("document_type", [])
+        if isinstance(value, str)
+    }
+    entry_type = "inproceedings" if "conference paper" in document_types else "article"
     doi = first(meta.get("dois", []), "value")
     report = ", ".join(r.get("value", "") for r in meta.get("report_numbers", []) if r.get("value"))
     year = str(pub.get("year") or meta.get("earliest_date", "")[:4] or meta.get("preprint_date", "")[:4])
@@ -195,7 +236,7 @@ def entry_from_record(record: dict) -> str:
         fields["pages"] = str(pub.get("artid") or pub.get("page_start"))
     if year:
         fields["year"] = year
-    lines = [f"@article{{{key},"]
+    lines = [f"@{entry_type}{{{key},"]
     for name, value in fields.items():
         lines.append(f'    {name} = "{latex_escape_text(str(value))}",')
     lines[-1] = lines[-1].rstrip(",")
